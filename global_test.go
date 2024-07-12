@@ -12,18 +12,21 @@ import (
 type fnc = func() string
 
 func TestSerialize(t *testing.T) {
+	ready()
 	b := new(bytes.Buffer)
-	fn.Panic(m.Initialize("testdata/main.plugin", "sample"))
 	fn.Panic(m.Serialize(b))
-	m2 := new(dynamic)
+	m2 := NewDynamic(NewSymbols())
 	println(hex.Dump(b.Bytes()))
 	fn.Panic(m2.InitializeSerialized(b))
 	act := *(*fnc)(m2.MustFetch("sample.Run"))
 	println(act())
+	for _, s := range m2.Symbols() {
+		println(s)
+	}
 }
 func TestLoad(t *testing.T) {
-	m := new(dynamic)
-	fn.Panic(m.Initialize("testdata/main.plugin", "sample"))
+	ready()
+	fn.Panic(m.Initialize("testdata/main.o", "sample"))
 	n, ok := m.Fetch("sample.Run")
 	if !ok {
 		println(m.Symbols())
@@ -48,27 +51,29 @@ func TestRoutines(t *testing.T) {
 func BenchmarkLoad(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		m := new(dynamic)
-		fn.Panic(m.Initialize("testdata/main.plugin", "sample"))
+		dyn := NewDynamic(NewSymbols())
+		fn.Panic(dyn.Initialize("testdata/main.o", "sample"))
 	}
 }
 func BenchmarkLoadAndExecute(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		m := new(dynamic)
-		fn.Panic(m.Initialize("testdata/main.plugin", "sample"))
-		n := m.MustFetch("sample.Run")
+		dyn := NewDynamic(NewSymbols())
+		fn.Panic(dyn.Initialize("testdata/main.o", "sample"))
+		n := dyn.MustFetch("sample.Run")
 		act := *(*fnc)(n)
 		act()
 	}
 }
 
-var m *dynamic
+var m Dynamic
 
-func init() {
-	m = new(dynamic)
-	fn.Panic(m.Initialize("sample/main.plugin", "sample"))
+func ready() {
+	if m == nil {
+		m = NewDynamic(NewSymbols())
+		fn.Panic(m.Initialize("testdata/main.o", "sample", time.Now))
+	}
 }
 func BenchmarkExecuteOnly(b *testing.B) {
 	b.ReportAllocs()
