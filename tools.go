@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // CopyFile from src to dest with optional src file info
@@ -78,19 +77,20 @@ func CopyDir(src string, dest string, si fs.FileInfo) (err error) {
 
 // Compile an object file output to working directory
 func Compile(debug bool, o []string) (err error) {
-	cmd := exec.Command("go", append([]string{"tool", "Compile", "-importcfg", "importcfg"}, o...)...)
+	cmd := exec.Command("go", append([]string{"tool", "compile", "-importcfg", "importcfg"}, o...)...)
 	if debug {
 		log.Printf("execute: %v", cmd.Args)
 	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	if err == nil && !debug {
-		time.Sleep(100 * time.Millisecond)
 		err = os.Remove("importcfg")
 	}
 	return
 }
 
-// Imports generate import cfg
+// Imports generate import cfg as importcfg file in current working directory.
 func Imports(debug bool, f []string) (err error) {
 	if debug {
 		log.Printf("sources: %v", f)
@@ -131,7 +131,7 @@ func Imports(debug bool, f []string) (err error) {
 	return
 }
 
-// ObjectImportsIter resolve all imported packages and version if it's a module.
+// ObjectImportsIter resolve all imported packages and version (only if it's a module).
 //
 // this use for parse dependencies
 func ObjectImportsIter(file, pkgPath string) (err error, info *Info) {
@@ -161,6 +161,7 @@ func LinkerImportsIter(link *goloader.Linker) (infos Infos) {
 	return
 }
 
+// Infos is a stringer slice of Info
 type Infos []*Info
 
 func (i Infos) String() string {
@@ -171,6 +172,7 @@ func (i Infos) String() string {
 	return s.String()
 }
 
+// Info contains the import information of a linker
 type Info struct {
 	File    string
 	PkgPath string
