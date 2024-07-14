@@ -1,15 +1,17 @@
-package dynamic
+package glob
 
 import (
 	"errors"
+	"github.com/ZenLiuCN/dynamic"
 	"github.com/ZenLiuCN/fn"
 	"github.com/pkujhd/goloader"
+	"maps"
 	"os"
 )
 
 var (
 	gob     map[string]uintptr
-	modules map[string]*dynamic
+	modules map[string]dynamic.Dynamic
 )
 
 func init() {
@@ -23,6 +25,11 @@ var (
 	// ErrNotExists occurs when unregister a not registered global Dynamic
 	ErrNotExists = errors.New("not registered into global")
 )
+
+// NewSymbols clone of global symbols
+func NewSymbols() dynamic.Symbols {
+	return maps.Clone(gob)
+}
 
 // UseGlobalSo register symbols form a golang dynamic library (.so)
 func UseGlobalSo(p string) error {
@@ -45,8 +52,7 @@ func UseGlobalObject(file string, pkg string) (err error) {
 	if _, ok := modules[file]; ok {
 		return ErrAlreadyExists
 	}
-	n := new(dynamic)
-	n.symbols = gob
+	n := dynamic.NewDynamic(gob)
 	err = n.Initialize(file, pkg)
 	if err != nil {
 		return err
@@ -65,8 +71,7 @@ func UseGlobalLinker(file string) (err error) {
 	if _, ok := modules[file]; ok {
 		return ErrAlreadyExists
 	}
-	n := new(dynamic)
-	n.symbols = gob
+	n := dynamic.NewDynamic(gob)
 	var f *os.File
 	f, err = os.OpenFile(file, os.O_WRONLY, os.ModePerm)
 	if err != nil {
@@ -87,12 +92,8 @@ func UseGlobalLinker(file string) (err error) {
 }
 
 // GlobalDynamics returns a copy map of global shared dynamics. should not modify any data. the result is map[FilePath|ModuleName] Dynamic
-func GlobalDynamics() (v map[string]Dynamic) {
-	v = make(map[string]Dynamic, len(modules))
-	for s, d := range modules {
-		v[s] = d
-	}
-	return
+func GlobalDynamics() (v map[string]dynamic.Dynamic) {
+	return maps.Clone(modules)
 }
 
 // GlobalSymbols returns a copy of global symbols
@@ -115,12 +116,12 @@ func CloseGlobalDynamics() error {
 }
 
 // RegisterGlobalDynamic register an user Dynamic into global dependencies. name must be unique
-func RegisterGlobalDynamic(name string, d Dynamic) error {
+func RegisterGlobalDynamic(name string, d dynamic.Dynamic) error {
 	if _, ok := modules[name]; ok {
 		return ErrAlreadyExists
 	}
-	modules[name] = d.(*dynamic)
-	register(d.(*dynamic))
+	modules[name] = d
+	register(d)
 	return nil
 }
 
@@ -135,21 +136,21 @@ func UnregisterGlobalDynamic(name string) error {
 	return nil
 }
 
-func register(d *dynamic) {
-	if d.module == nil {
+func register(d dynamic.Dynamic) {
+	if d.GetModule() == nil {
 		return
 	}
-	for s, u := range d.module.Syms {
+	for s, u := range d.GetModule().Syms {
 		if _, ok := gob[s]; !ok {
 			gob[s] = u
 		}
 	}
 }
-func unregister(d *dynamic) {
-	if d.module == nil {
+func unregister(d dynamic.Dynamic) {
+	if d.GetModule() == nil {
 		return
 	}
-	for s, u := range d.module.Syms {
+	for s, u := range d.GetModule().Syms {
 		if x, ok := gob[s]; ok && x == u {
 			delete(gob, s)
 		}

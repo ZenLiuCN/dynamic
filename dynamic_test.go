@@ -4,10 +4,147 @@ import (
 	"github.com/ZenLiuCN/fn"
 	"testing"
 	"time"
+
+	"bytes"
+	"encoding/hex"
+	"sync"
 )
 
+const (
+	moduleFunc    = "testdata/func.o"
+	moduleConst   = "testdata/constant.o"
+	moduleFactory = "testdata/factory.o"
+	moduleArchive = "testdata/constant.a"
+	symRun        = "sample.Run"
+	symConst      = "sample.Const"
+	symFactory    = "sample.NewFactory"
+	pkgSample     = "sample"
+)
+
+type (
+	typeFunc    = func() string
+	typeFactory = func(name string) Proto
+	typeConst   = func() Proto
+)
+
+var debugging = false
+var sym = fn.Panic1(NewSymbols())
+
+func TestArchive(t *testing.T) {
+	d := NewDynamic(sym, debugging)
+	var pt Proto
+	fn.Panic(d.Initialize(moduleArchive, pkgSample, &pt))
+	fn.Panic(d.Link())
+	t.Log(d.Exports())
+	fx := As[typeFunc](d.MustFetch(symRun))
+	t.Log(fx())
+
+	f := As[typeConst](d.MustFetch(symConst))()
+	t.Logf("%+v", f)
+	t.Log(f.Name())
+	t.Log(f.Action())
+	f = As[typeFactory](d.MustFetch(symFactory))("archive")
+	t.Logf("%+v", f)
+	t.Log(f.Name())
+	t.Log(f.Action())
+
+}
+func TestConstant(t *testing.T) {
+	d := NewDynamic(sym, debugging)
+	var pt Proto
+	fn.Panic(d.Initialize(moduleConst, pkgSample, &pt))
+	fn.Panic(d.Link())
+	t.Log(d.Exports())
+	//t.Log(d.InitTask(pkgSample))
+	f := As[typeConst](d.MustFetch(symConst))()
+	t.Logf("%+v", f)
+	t.Log(f.Name())
+	t.Log(f.Action())
+
+}
+func TestFactory(t *testing.T) {
+	d := NewDynamic(sym, debugging)
+	var pt Proto
+	fn.Panic(d.Initialize(moduleFactory, pkgSample, &pt))
+	fn.Panic(d.Link())
+	f := As[typeFactory](d.MustFetch(symFactory))
+	i := f("some")
+	t.Logf("%+v", i)
+	t.Log(i.Name())
+	t.Log(i.Action())
+
+}
+func TestFactoryRoutines(t *testing.T) {
+	d := NewDynamic(sym, debugging)
+	var pt Proto
+	fn.Panic(d.Initialize(moduleFactory, pkgSample, &pt))
+	fn.Panic(d.Link())
+	f := As[typeFactory](d.MustFetch(symFactory))
+	i := f("some")
+	t.Logf("%+v", i)
+	t.Log(i.Name())
+	t.Log(i.Action())
+	var w sync.WaitGroup
+	for n := 0; n < 10; n++ {
+		w.Add(1)
+		go func() {
+			defer w.Done()
+			t.Log(i.Name())
+			t.Log(i.Action())
+		}()
+	}
+	w.Wait()
+
+}
+func TestSerialize(t *testing.T) {
+	ready()
+	b := new(bytes.Buffer)
+	fn.Panic(m.Serialize(b))
+	m2 := NewDynamic(sym)
+	println(hex.Dump(b.Bytes()))
+	fn.Panic(m2.InitializeSerialized(b))
+	fn.Panic(m2.Link())
+	act := As[typeFunc](m2.MustFetch(symRun))
+	println(act())
+
+}
+func TestLoad(t *testing.T) {
+	ready()
+	n, ok := m.Fetch(symRun)
+	if !ok {
+		println(m.ExistsSymbols())
+		panic("not found sym")
+	}
+	println("one", As[typeFunc](n)())
+	println("two", As[typeFunc](m.MustFetch(symRun))())
+	println("three", As[typeFunc](m.MustFetch(symRun))())
+
+}
+func TestRoutines(t *testing.T) {
+	ready()
+	var w sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		w.Add(1)
+		go func() {
+			defer w.Done()
+			println(As[typeFunc](m.MustFetch(symRun))())
+		}()
+	}
+	w.Wait()
+}
+
+var m Dynamic
+
+func ready() {
+	if m == nil {
+		m = NewDynamic(sym)
+		fn.Panic(m.Initialize(moduleFunc, pkgSample, time.Now))
+		fn.Panic(m.Link())
+	}
+}
+
 func TestUse(t *testing.T) {
-	dyn := NewDynamic(NewSymbols(), debugging)
+	dyn := NewDynamic(sym, debugging)
 	fn.Panic(dyn.Initialize(moduleFunc, pkgSample, time.Now))
 	fn.Panic(dyn.Link())
 	defer dyn.Free(true)
@@ -37,7 +174,7 @@ func TestUse(t *testing.T) {
 }
 
 func TestAs(t *testing.T) {
-	dyn := NewDynamic(NewSymbols(), debugging)
+	dyn := NewDynamic(sym, debugging)
 	fn.Panic(dyn.Initialize(moduleFunc, pkgSample))
 	fn.Panic(dyn.Link())
 	defer dyn.Free(true)

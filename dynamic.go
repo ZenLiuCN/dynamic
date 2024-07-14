@@ -28,44 +28,44 @@ type (
 	//	1. Must fetch and use one symbol as desired type inside one specific goroutine.
 	//	2. Dynamic itself can be used safe between goroutines, but not thread-safe.
 	Dynamic interface {
-		Symbols
 		InitializeMany(file, pkg []string, types ...any) (err error) //Initialize from many object files
 		Initialize(file, pkg string, types ...any) (err error)       //Initialize from one object file
 		InitializeSerialized(in io.Reader, types ...any) (err error) //Initialize from serialized linker
 		Link() (err error)                                           //link and create code module
-		// InitTask(pkg string) bool                                    //invoke init methods
-		MissingSymbols() []string          //dump the missing symbols
-		Serialize(out io.Writer) error     //write linker data to an output binary format [gob] which may loaded by InitializeSerialized
-		Fetch(sym string) (u Sym, ok bool) //fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized
-		MustFetch(sym string) (u Sym)      // fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized or ErrMissingSymbol
-		Exports() []string                 //exports symbols of the module. nil if not link
-		Free(sync bool)                    //resources of dynamic module, sync parameter to sync the stdout or not
-		GetLinker() *goloader.Linker       //fetch the internal [goloader.Linker], it is nil before initial stage by [Dynamic.Initialize]
-		GetModule() *goloader.CodeModule   //fetch the internal [goloader.CodeModule], it is nil before link stage by [Dynamic.Link]
+		ExistsSymbols() []string                                     //env symbols
+		MissingSymbols() []string                                    //dump the missing symbols
+		Serialize(out io.Writer) error                               //write linker data to an output binary format [gob] which may loaded by InitializeSerialized
+		Fetch(sym string) (u Sym, ok bool)                           //fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized
+		MustFetch(sym string) (u Sym)                                // fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized or ErrMissingSymbol
+		Exports() []string                                           //exports symbols of the module. nil if not link
+		Free(sync bool)                                              //resources of dynamic module, sync parameter to sync the stdout or not
+		GetLinker() *goloader.Linker                                 //fetch the internal [goloader.Linker], it is nil before initial stage by [Dynamic.Initialize]
+		GetModule() *goloader.CodeModule                             //fetch the internal [goloader.CodeModule], it is nil before link stage by [Dynamic.Link]
 
 		internal()
 	}
 	// Symbols contains global resolved symbols
 	//
 	// If two Dynamic shares the same Symbols instance, it may depend on each other after make.
-	Symbols interface {
-		Symbols() []string //resolved symbols
-	}
-	symbols map[string]uintptr
+	Symbols map[string]uintptr
 	dynamic struct {
 		files []string
 		pkg   []string
-		symbols
+		Symbols
 		linker *goloader.Linker
 		module *goloader.CodeModule
 		debug  bool
 	}
 )
 
+func (s Symbols) ExistsSymbols() []string {
+	return fn.MapKeys(s)
+}
+
 // NewDynamic create new dynamic with provided Symbols, an optional debug parameter will enable debug logging inside Dynamic
 func NewDynamic(sym Symbols, debug ...bool) (d Dynamic) {
 	x := new(dynamic)
-	x.symbols = sym.(symbols)
+	x.Symbols = sym
 	x.debug = debug != nil && len(debug) > 0 && debug[0]
 	return x
 }
@@ -84,7 +84,7 @@ func (s *dynamic) InitializeMany(file, pkg []string, types ...any) (err error) {
 		if s.debug {
 			log.Println("register types", types)
 		}
-		goloader.RegTypes(s.symbols, types...)
+		goloader.RegTypes(s.Symbols, types...)
 	}
 	s.files = append(s.files, file...)
 	s.pkg = append(s.pkg, pkg...)
@@ -106,7 +106,7 @@ func (s *dynamic) Initialize(file, pkg string, types ...any) (err error) {
 		if s.debug {
 			log.Println("register types", types)
 		}
-		goloader.RegTypes(s.symbols, types...)
+		goloader.RegTypes(s.Symbols, types...)
 	}
 	if s.linker, err = goloader.ReadObj(file, pkg); err != nil {
 		return
@@ -124,7 +124,7 @@ func (s *dynamic) InitializeSerialized(in io.Reader, types ...any) (err error) {
 		if s.debug {
 			log.Println("register types", types)
 		}
-		goloader.RegTypes(s.symbols, types...)
+		goloader.RegTypes(s.Symbols, types...)
 	}
 	if s.linker, err = goloader.UnSerialize(in); err != nil {
 		return
@@ -142,7 +142,7 @@ func (s *dynamic) Link() (err error) {
 	if s.module != nil {
 		return ErrLinked
 	}
-	if s.module, err = goloader.Load(s.linker, s.symbols); err != nil {
+	if s.module, err = goloader.Load(s.linker, s.Symbols); err != nil {
 		return
 	}
 	if s.debug {
@@ -168,7 +168,7 @@ func (s *dynamic) InitTask(pkg string) bool {
 			panic(ErrUninitialized)
 		}
 		t := pkg + ".init"
-		for k, p := range s.module.Syms {
+		for k, p := range s.module.Symbols {
 			if k == t {
 				As[func()]((Sym)(unsafe.Pointer(&p)))()
 				return true
@@ -219,7 +219,7 @@ func (s *dynamic) MissingSymbols() []string {
 	if s.linker == nil {
 		panic(ErrUninitialized)
 	}
-	return goloader.UnresolvedSymbols(s.linker, s.symbols)
+	return goloader.UnresolvedSymbols(s.linker, s.Symbols)
 }
 func (s *dynamic) Serialize(out io.Writer) error {
 	if s.linker == nil {
@@ -240,7 +240,7 @@ func (s *dynamic) Free(sync bool) {
 			s.module.Unload()
 			s.module = nil
 		}
-		s.symbols = nil
+		s.Symbols = nil
 		s.linker = nil
 		{
 			n := len(s.pkg)

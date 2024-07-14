@@ -2,19 +2,8 @@ package dynamic
 
 import (
 	"errors"
-	"github.com/ZenLiuCN/fn"
-	"maps"
+	"github.com/pkujhd/goloader"
 )
-
-// NewSymbols create a Symbols with global symbols
-func NewSymbols() Symbols {
-	return symbols(maps.Clone(gob))
-}
-
-// Symbols dump symbol names inside Symbol
-func (s symbols) Symbols() []string {
-	return fn.MapKeys(s)
-}
 
 var (
 	// ErrMissingSymbol occurs when can't found a symbol.
@@ -26,3 +15,9 @@ var (
 	// ErrUninitialized occurs use or link a Dynamic before initialized.
 	ErrUninitialized = errors.New("module not initialized")
 )
+
+func NewSymbols() (t Symbols, err error) {
+	t = make(map[string]uintptr)
+	err = goloader.RegSymbol(t)
+	return
+}
