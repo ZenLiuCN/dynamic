@@ -16,6 +16,8 @@ Source codes are under Apache License Version 2.0.
  1. This project is in WIP stage. Current only target on go 1.21+.
  2. User must be careful when use global symbols of those not ship with the host executable, other dynamics may depend on them.
     also there free sequence is important. current user should do it by themselves.
+ 3. For [goloader]'s limitation, current only exported function can link and use.
+ 4. Sym must directly fetch and use in code,should not reuse the cast result or the Sym itself. But the function result is safe to use for multiple times.
 
 # Compile tool
 

@@ -2,6 +2,7 @@ package dynamic
 
 import (
 	"fmt"
+	"github.com/ZenLiuCN/fn"
 	"github.com/pkujhd/goloader"
 	"io"
 	"log"
@@ -32,13 +33,16 @@ type (
 		Initialize(file, pkg string, types ...any) (err error)       //Initialize from one object file
 		InitializeSerialized(in io.Reader, types ...any) (err error) //Initialize from serialized linker
 		Link() (err error)                                           //link and create code module
-		MissingSymbols() []string                                    //dump the missing symbols
-		Serialize(out io.Writer) error                               //write linker data to an output binary format [gob] which may loaded by InitializeSerialized
-		Fetch(sym string) (u Sym, ok bool)                           //fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized
-		MustFetch(sym string) (u Sym)                                // fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized or ErrMissingSymbol
-		Free(sync bool)                                              //resources of dynamic module, sync parameter to sync the stdout or not
-		GetLinker() *goloader.Linker                                 //fetch the internal [goloader.Linker], it is nil before initial stage by [Dynamic.Initialize]
-		GetModule() *goloader.CodeModule                             //fetch the internal [goloader.CodeModule], it is nil before link stage by [Dynamic.Link]
+		// InitTask(pkg string) bool                                    //invoke init methods
+		MissingSymbols() []string          //dump the missing symbols
+		Serialize(out io.Writer) error     //write linker data to an output binary format [gob] which may loaded by InitializeSerialized
+		Fetch(sym string) (u Sym, ok bool) //fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized
+		MustFetch(sym string) (u Sym)      // fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized or ErrMissingSymbol
+		Exports() []string                 //exports symbols of the module. nil if not link
+		Free(sync bool)                    //resources of dynamic module, sync parameter to sync the stdout or not
+		GetLinker() *goloader.Linker       //fetch the internal [goloader.Linker], it is nil before initial stage by [Dynamic.Initialize]
+		GetModule() *goloader.CodeModule   //fetch the internal [goloader.CodeModule], it is nil before link stage by [Dynamic.Link]
+
 		internal()
 	}
 	// Symbols contains global resolved symbols
@@ -147,6 +151,32 @@ func (s *dynamic) Link() (err error) {
 	return
 }
 
+func (s *dynamic) Exports() (v []string) {
+	if s.linker == nil {
+		return
+	}
+	if s.module == nil {
+		return
+	}
+	return fn.MapKeys(s.module.Syms)
+}
+
+/*
+func (s *dynamic) InitTask(pkg string) bool {
+
+		if s.module == nil {
+			panic(ErrUninitialized)
+		}
+		t := pkg + ".init"
+		for k, p := range s.module.Syms {
+			if k == t {
+				As[func()]((Sym)(unsafe.Pointer(&p)))()
+				return true
+			}
+		}
+		return false
+	}
+*/
 func (s *dynamic) Fetch(sym string) (u Sym, ok bool) {
 	if s.module == nil {
 		ok = false

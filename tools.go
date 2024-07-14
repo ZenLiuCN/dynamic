@@ -77,7 +77,12 @@ func CopyDir(src string, dest string, si fs.FileInfo) (err error) {
 
 // Compile an object file output to working directory
 func Compile(debug bool, o []string) (err error) {
-	cmd := exec.Command("go", append([]string{"tool", "compile", "-importcfg", "importcfg"}, o...)...)
+	var cmd *exec.Cmd
+	if len(o) == 1 {
+		cmd = exec.Command("go", "tool", "compile", "-importcfg", "importcfg", o[0])
+	} else {
+		cmd = exec.Command("go", append([]string{"tool", "compile", "-importcfg", "importcfg", "-pack"}, o...)...)
+	}
 	if debug {
 		log.Printf("execute: %v", cmd.Args)
 	}

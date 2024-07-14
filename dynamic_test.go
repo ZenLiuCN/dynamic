@@ -8,7 +8,7 @@ import (
 
 func TestUse(t *testing.T) {
 	dyn := NewDynamic(NewSymbols(), debugging)
-	fn.Panic(dyn.Initialize(moduleFunc, "sample", time.Now))
+	fn.Panic(dyn.Initialize(moduleFunc, pkgSample, time.Now))
 	fn.Panic(dyn.Link())
 	defer dyn.Free(true)
 	type args struct {
@@ -36,9 +36,9 @@ func TestUse(t *testing.T) {
 	}
 }
 
-func TestUseAs(t *testing.T) {
+func TestAs(t *testing.T) {
 	dyn := NewDynamic(NewSymbols(), debugging)
-	fn.Panic(dyn.Initialize(moduleFunc, "sample", time.Now))
+	fn.Panic(dyn.Initialize(moduleFunc, pkgSample))
 	fn.Panic(dyn.Link())
 	defer dyn.Free(true)
 	f, ok := dyn.Fetch(symRun)
