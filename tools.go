@@ -174,7 +174,7 @@ func Packs(dbg bool, sources []string, pkgPath string, includes []string, exclud
 	if err != nil {
 		return
 	}
-	ic := len(includes) == 0
+	ic := len(includes) != 0
 	ec := len(excludes) != 0
 	b := fn.Panic1(os.ReadFile("importcfg"))
 	s := bufio.NewScanner(bytes.NewReader(b))
@@ -192,7 +192,7 @@ func Packs(dbg bool, sources []string, pkgPath string, includes []string, exclud
 		if checkAll(p) {
 			continue
 		}
-		if ic || slices.IndexFunc(includes, func(s string) bool {
+		if ic && slices.IndexFunc(includes, func(s string) bool {
 			return s == p || strings.HasPrefix(p, s)
 		}) >= 0 {
 			d[p] = string(t[i+1:])
