@@ -21,7 +21,7 @@ func BenchmarkLoadAndExecute(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		dyn := NewDynamic(sym)
 		fn.Panic(dyn.Initialize(moduleFunc, pkgSample))
-		act := As[typeFunc](m.MustFetch(symRun))
+		act := AsOnce[typeFunc](m.MustFetch(symRun))
 		act()
 	}
 }
@@ -31,13 +31,13 @@ func BenchmarkExecuteOnly(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		As[typeFunc](m.MustFetch(symRun))()
+		AsOnce[typeFunc](m.MustFetch(symRun))()
 	}
 }
 func BenchmarkHoldingExecuteOnly(b *testing.B) {
 	ready()
 	f := m.MustFetch(symRun)
-	fx := AsHolding[typeFunc](&f)
+	fx := As[typeFunc](&f)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
