@@ -34,6 +34,16 @@ func BenchmarkExecuteOnly(b *testing.B) {
 		As[typeFunc](m.MustFetch(symRun))()
 	}
 }
+func BenchmarkHoldingExecuteOnly(b *testing.B) {
+	ready()
+	f := m.MustFetch(symRun)
+	fx := AsHolding[typeFunc](&f)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		fx()
+	}
+}
 func Run() string {
 	return time.Now().String()
 }

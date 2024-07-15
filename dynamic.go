@@ -191,7 +191,7 @@ func (s *dynamic) Fetch(sym string) (u Sym, ok bool) {
 	if s.debug {
 		log.Printf("found symbol: %x", p)
 	}
-	return (Sym)(unsafe.Pointer(&p)), ok
+	return Sym(p), ok
 }
 
 func checkPackage(sym string) string {
@@ -212,7 +212,7 @@ func (s *dynamic) MustFetch(sym string) (u Sym) {
 	if s.debug {
 		log.Printf("found symbol: %x", p)
 	}
-	return (Sym)(unsafe.Pointer(&p))
+	return Sym(p)
 }
 
 func (s *dynamic) MissingSymbols() []string {
@@ -289,14 +289,22 @@ func Use[T any](dyn Dynamic, sym string) func(func(t T, err error)) {
 				f(x, fmt.Errorf("%v", y))
 			}
 		}()
-		p := dyn.MustFetch(sym)
-		x = As[T](p)
+		x = AsOnce[T](dyn.MustFetch(sym))
 	}
 }
 
-// As convert fetched Sym to contract type
-func As[T any](ptr Sym) (x T) {
-	px := (*T)(unsafe.Pointer(&ptr))
-	x = *px
+// AsOnce convert fetched Sym to contract function type, this result can only use once for value passed ptr
+func AsOnce[T any](ptr Sym) (x T) {
+	s := Sym(unsafe.Pointer(&ptr))
+	sx := unsafe.Pointer(&s)
+	x = *(*T)(sx)
+	return
+}
+
+// As convert fetched Sym to contract function type, this result can use as many times before
+// ptr been GC.
+func As[T any](ptr *Sym) (x T) {
+	h := Sym(unsafe.Pointer(ptr))
+	x = *(*T)(unsafe.Pointer(&h))
 	return
 }

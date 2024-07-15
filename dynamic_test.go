@@ -36,14 +36,14 @@ func TestArchive(t *testing.T) {
 	fn.Panic(d.Initialize(moduleArchive, pkgSample, &pt))
 	fn.Panic(d.Link())
 	t.Log(d.Exports())
-	fx := As[typeFunc](d.MustFetch(symRun))
+	fx := AsOnce[typeFunc](d.MustFetch(symRun))
 	t.Log(fx())
 
-	f := As[typeConst](d.MustFetch(symConst))()
+	f := AsOnce[typeConst](d.MustFetch(symConst))()
 	t.Logf("%+v", f)
 	t.Log(f.Name())
 	t.Log(f.Action())
-	f = As[typeFactory](d.MustFetch(symFactory))("archive")
+	f = AsOnce[typeFactory](d.MustFetch(symFactory))("archive")
 	t.Logf("%+v", f)
 	t.Log(f.Name())
 	t.Log(f.Action())
@@ -56,7 +56,7 @@ func TestConstant(t *testing.T) {
 	fn.Panic(d.Link())
 	t.Log(d.Exports())
 	//t.Log(d.InitTask(pkgSample))
-	f := As[typeConst](d.MustFetch(symConst))()
+	f := AsOnce[typeConst](d.MustFetch(symConst))()
 	t.Logf("%+v", f)
 	t.Log(f.Name())
 	t.Log(f.Action())
@@ -67,7 +67,7 @@ func TestFactory(t *testing.T) {
 	var pt Proto
 	fn.Panic(d.Initialize(moduleFactory, pkgSample, &pt))
 	fn.Panic(d.Link())
-	f := As[typeFactory](d.MustFetch(symFactory))
+	f := AsOnce[typeFactory](d.MustFetch(symFactory))
 	i := f("some")
 	t.Logf("%+v", i)
 	t.Log(i.Name())
@@ -79,7 +79,7 @@ func TestFactoryRoutines(t *testing.T) {
 	var pt Proto
 	fn.Panic(d.Initialize(moduleFactory, pkgSample, &pt))
 	fn.Panic(d.Link())
-	f := As[typeFactory](d.MustFetch(symFactory))
+	f := AsOnce[typeFactory](d.MustFetch(symFactory))
 	i := f("some")
 	t.Logf("%+v", i)
 	t.Log(i.Name())
@@ -104,7 +104,7 @@ func TestSerialize(t *testing.T) {
 	println(hex.Dump(b.Bytes()))
 	fn.Panic(m2.InitializeSerialized(b))
 	fn.Panic(m2.Link())
-	act := As[typeFunc](m2.MustFetch(symRun))
+	act := AsOnce[typeFunc](m2.MustFetch(symRun))
 	println(act())
 
 }
@@ -115,9 +115,9 @@ func TestLoad(t *testing.T) {
 		println(m.ExistsSymbols())
 		panic("not found sym")
 	}
-	println("one", As[typeFunc](n)())
-	println("two", As[typeFunc](m.MustFetch(symRun))())
-	println("three", As[typeFunc](m.MustFetch(symRun))())
+	println("one", As[typeFunc](&n)())
+	println("two", AsOnce[typeFunc](m.MustFetch(symRun))())
+	println("three", AsOnce[typeFunc](m.MustFetch(symRun))())
 
 }
 func TestRoutines(t *testing.T) {
@@ -127,7 +127,7 @@ func TestRoutines(t *testing.T) {
 		w.Add(1)
 		go func() {
 			defer w.Done()
-			println(As[typeFunc](m.MustFetch(symRun))())
+			println(AsOnce[typeFunc](m.MustFetch(symRun))())
 		}()
 	}
 	w.Wait()
@@ -182,6 +182,9 @@ func TestAs(t *testing.T) {
 	if !ok {
 		t.Errorf("not found ")
 	} else {
-		t.Log(As[typeFunc](f)())
+		fx := As[typeFunc](&f)
+		for i := 0; i < 19; i++ {
+			t.Logf("%p => %s", &f, fx())
+		}
 	}
 }

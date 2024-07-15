@@ -191,6 +191,19 @@ func (p *Pool) Require(pkgPath, symbolName string) Sym {
 	panic(ErrMissingPackage)
 }
 
+// Free clean all modules
+func (p *Pool) Free() {
+	p.Lock()
+	defer p.Unlock()
+	for _, dynamic := range p.Loaded {
+		p.unregister(dynamic)
+		dynamic.Free(true)
+	}
+	p.Loaded = nil
+	fn.MapClear(p.Modules)
+
+}
+
 // NewPool create new pool
 func NewPool() (p *Pool, err error) {
 	p = new(Pool)
