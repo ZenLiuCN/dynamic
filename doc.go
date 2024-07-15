@@ -25,24 +25,28 @@ This is a module compile tool to compile go files into relocatable object file (
 which can be loaded and execute at runtime as a Dynamic module.
 The compile tool can be installed by:
 
-	go install github.com/ZenLiuCN/dynamic/compile@latest
+	go install github.com/ZenLiuCN/dynamic/compiler@latest
 
 It also can inspect the .o file's imports, prepare go sdk to compile the host executable and so on ... .
 For more details see the cli help:
 
-	compile -h
+	compiler -h
 
 # Use this library on develop stage or compile distribution binaries
 
   - 1. Prepare GO sdk
 
-    use compile cli tool via `compile prepare` or  use shell script named as `patch.sh`.
+    use compile cli tool via `compiler prepare` or  use shell script named as `patch.sh`.
 
   - 2. Work around with the dynamics
 
+  - 3. Compile modules
+
+    use `compiler compile` or `compiler module ` to compile modules
+
   - 3. Restore the GO SDK
 
-    use compile cli tool via `compile clean` or use shell script named as `patch.sh`.
+    use compile cli tool via `compiler clean` or use shell script named as `patch.sh`.
 
 # Samples
 

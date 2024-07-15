@@ -2,6 +2,7 @@ package dynamic
 
 import (
 	"github.com/ZenLiuCN/fn"
+	"os"
 	"testing"
 	"time"
 
@@ -186,5 +187,16 @@ func TestAs(t *testing.T) {
 		for i := 0; i < 19; i++ {
 			t.Logf("%p => %s", &f, fx())
 		}
+	}
+}
+
+func TestLinkable(t *testing.T) {
+	dyn := NewDynamic(sym, debugging)
+	f := fn.Panic1(os.Open("testdata/constant.linkable"))
+	fn.Panic(dyn.InitializeSerialized(f))
+	fn.Panic(f.Close())
+	l := dyn.GetLinker()
+	for _, pkg := range l.Packages {
+		t.Log(pkg.File, pkg.PkgPath)
 	}
 }

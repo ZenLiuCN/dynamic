@@ -12,11 +12,23 @@ import (
 )
 
 type (
-	//Sym is a simple alias of uintptr.
+	// Dependency contains a dependency package information
+	Dependency struct {
+		File    string
+		PkgPath string
+		Symbols []string
+	}
+	// Sym is a simple alias of uintptr, which is a pointer to symbol entry address.
 	Sym uintptr
-	//Dynamic module from object files or serialized Liner file, this interface can not be implement outside this package.
+	//Dynamic module from object files or serialized Liner file, this interface can
+	//not be implement outside this package.
 	//
-	//Use Steps:
+	//# Stage
+	//
+	// -  Initialized : load modules, current can check imports symbols and so on.
+	// -  Linked : link with runtime, current can fetch the exposed symbols for use.
+	//
+	//# Use Steps:
 	//
 	//	1. InitializeMany or Initialize or InitializeSerialized to initialize this dynamic module.
 	//	2. [Dynamic.Link] to link the code to runtime and other global dependencies.
@@ -31,16 +43,20 @@ type (
 		InitializeMany(file, pkg []string, types ...any) (err error) //Initialize from many object files
 		Initialize(file, pkg string, types ...any) (err error)       //Initialize from one object file
 		InitializeSerialized(in io.Reader, types ...any) (err error) //Initialize from serialized linker
-		Link() (err error)                                           //link and create code module
-		ExistsSymbols() []string                                     //env symbols
-		MissingSymbols() []string                                    //dump the missing symbols
-		Serialize(out io.Writer) error                               //write linker data to an output binary format [gob] which may loaded by InitializeSerialized
-		Fetch(sym string) (u Sym, ok bool)                           //fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized
-		MustFetch(sym string) (u Sym)                                // fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized or ErrMissingSymbol
-		Exports() []string                                           //exports symbols of the module. nil if not link
-		Free(sync bool)                                              //resources of dynamic module, sync parameter to sync the stdout or not
-		GetLinker() *goloader.Linker                                 //fetch the internal [goloader.Linker], it is nil before initial stage by [Dynamic.Initialize]
-		GetModule() *goloader.CodeModule                             //fetch the internal [goloader.CodeModule], it is nil before link stage by [Dynamic.Link]
+
+		LoadDependencies(dependencies ...Dependency) error //load dependencies, must use before [Dynamic.Link]
+		ExistsSymbols() []string                           //runtime symbols, valid after creation
+		MissingSymbols() []string                          //dump the missing symbols, valid after initialize.
+
+		Link() (err error) //link and create code module, must use after [Dynamic.Initialize], [Dynamic.InitializeSerialized] or [Dynamic.InitializeMany],throws ErrUninitialized
+
+		Serialize(out io.Writer) error     //write linker data to an output binary format [gob] which may loaded by [Dynamic.InitializeSerialized]
+		Fetch(sym string) (u Sym, ok bool) //fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized
+		MustFetch(sym string) (u Sym)      // fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized or ErrMissingSymbol
+		Exports() []string                 //exports symbols of the module. nil if not link
+		Free(sync bool)                    //resources of dynamic module, sync parameter to sync the stdout or not
+		GetLinker() *goloader.Linker       //fetch the internal [goloader.Linker], it is nil before initial stage by invoke one of [Dynamic.Initialize], [Dynamic.InitializeSerialized] or [Dynamic.InitializeMany]
+		GetModule() *goloader.CodeModule   //fetch the internal [goloader.CodeModule], it is nil before link by invoke [Dynamic.Link]
 
 		internal()
 	}
@@ -135,6 +151,21 @@ func (s *dynamic) InitializeSerialized(in io.Reader, types ...any) (err error) {
 	return
 }
 
+func (s *dynamic) LoadDependencies(dependencies ...Dependency) (err error) {
+	if s.linker == nil {
+		return ErrUninitialized
+	}
+	if s.module != nil {
+		return ErrLinked
+	}
+	for _, dependency := range dependencies {
+		err = s.linker.ReadDependPkg(dependency.File, dependency.PkgPath, dependency.Symbols, s.Symbols)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
 func (s *dynamic) Link() (err error) {
 	if s.linker == nil {
 		return ErrUninitialized

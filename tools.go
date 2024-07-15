@@ -1,10 +1,14 @@
 package dynamic
 
 import (
+	"bufio"
+	"bytes"
+	"errors"
 	"fmt"
 	"github.com/ZenLiuCN/fn"
 	"github.com/pkujhd/goloader"
 	"github.com/pkujhd/goloader/obj"
+	"slices"
 
 	"io"
 	"io/fs"
@@ -76,7 +80,7 @@ func CopyDir(src string, dest string, si fs.FileInfo) (err error) {
 }
 
 // Compile an object file output to working directory
-func Compile(debug bool, o []string) (err error) {
+func Compile(debug bool, o []string, remove bool) (err error) {
 	var cmd *exec.Cmd
 	if len(o) == 1 {
 		cmd = exec.Command("go", "tool", "compile", "-importcfg", "importcfg", o[0])
@@ -89,9 +93,152 @@ func Compile(debug bool, o []string) (err error) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
-	if err == nil && !debug {
+	if err == nil && remove {
 		err = os.Remove("importcfg")
 	}
+	return
+}
+
+var (
+	pkgPrefix    = []byte("packagefile ")
+	vendorPrefix = []byte("vendor/")
+	skipPackages = []string{
+		"runtime",
+		"internal",
+		"github.com/ZenLiuCN/dynamic",
+		"github.com/ZenLiuCN/fn",
+		"github.com/pkujhd/goloader",
+		"go",
+		"syscall",
+		"reflect",
+		"os",
+		"archive",
+		"bufio",
+		"bytes",
+		"cmp",
+		"compress",
+		"container",
+		"context",
+		"crypto",
+		"database",
+		"debug",
+		"embed",
+		"encoding",
+		"errors",
+		"expvar",
+		"flag",
+		"fmt",
+		"hash",
+		"html",
+		"image",
+		"index",
+		"io",
+		"log",
+		"maps",
+		"math",
+		"mime",
+		"net",
+		"path",
+		"plugin",
+		"regexp",
+		"slices",
+		"sort",
+		"strconv",
+		"strings",
+		"sync",
+		"testing",
+		"text",
+		"time",
+		"unicode",
+	}
+)
+
+func checkAll(p string) bool {
+	for _, skipPackage := range skipPackages {
+		if check(p, skipPackage) {
+			return true
+		}
+	}
+	return false
+}
+func check(p string, pkg string) bool {
+	return strings.HasPrefix(p, pkg+"/") || p == pkg
+}
+func Packs(dbg bool, sources []string, pkgPath string, includes []string) (err error) {
+	defer func() {
+		if err == nil && !dbg {
+			err = os.Remove("importcfg")
+		}
+	}()
+	err = Compile(dbg, sources, false)
+	if err != nil {
+		return
+	}
+	ic := len(includes) == 0
+	b := fn.Panic1(os.ReadFile("importcfg"))
+	s := bufio.NewScanner(bytes.NewReader(b))
+	s.Split(bufio.ScanLines)
+	d := make(map[string]string)
+	for s.Scan() {
+		t := s.Bytes()
+		t = bytes.TrimPrefix(t, pkgPrefix)
+		i := bytes.IndexByte(t, '=')
+		pkg := t[:i]
+		if len(pkg) > len(vendorPrefix) && bytes.Equal(pkg[:7], vendorPrefix) {
+			continue
+		}
+		p := string(pkg)
+		if checkAll(p) {
+			continue
+		}
+		if ic || slices.IndexFunc(includes, func(s string) bool {
+			return s == p || strings.HasPrefix(p, s)
+		}) >= 0 {
+			d[p] = string(t[i+1:])
+		}
+	}
+	px := strings.TrimSuffix(sources[0], ".go")
+	n := px
+	if len(sources) > 1 {
+		n += ".a"
+	} else {
+		n += ".o"
+	}
+	var ss Symbols
+	ss, err = NewSymbols()
+	if err != nil {
+		return
+	}
+	l := NewDynamic(ss)
+	err = l.Initialize(n, pkgPath)
+	if err != nil {
+		return
+	}
+	if dbg {
+		for _, s2 := range l.MissingSymbols() {
+			log.Printf("required %s", s2)
+		}
+	}
+	for pkg, file := range d {
+		if dbg {
+			log.Printf("will pack with %s from %s", pkg, file)
+		}
+		err = l.LoadDependencies(Dependency{
+			File:    file,
+			PkgPath: pkg,
+			Symbols: nil,
+		})
+		if err != nil {
+			return errors.Join(fmt.Errorf("loading dependecy %s from %s", pkg, file), err)
+		}
+	}
+	var o *os.File
+	o, err = os.OpenFile(px+".linkable", os.O_CREATE|os.O_TRUNC, os.ModePerm)
+	if err != nil {
+		return
+	}
+	defer fn.IgnoreClose(o)
+	err = l.Serialize(o)
 	return
 }
 
