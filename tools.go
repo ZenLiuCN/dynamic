@@ -164,7 +164,7 @@ func checkAll(p string) bool {
 func check(p string, pkg string) bool {
 	return strings.HasPrefix(p, pkg+"/") || p == pkg
 }
-func Packs(dbg bool, sources []string, pkgPath string, includes []string) (err error) {
+func Packs(dbg bool, sources []string, pkgPath string, includes []string, excludes []string) (err error) {
 	defer func() {
 		if err == nil && !dbg {
 			err = os.Remove("importcfg")
@@ -175,6 +175,7 @@ func Packs(dbg bool, sources []string, pkgPath string, includes []string) (err e
 		return
 	}
 	ic := len(includes) == 0
+	ec := len(excludes) != 0
 	b := fn.Panic1(os.ReadFile("importcfg"))
 	s := bufio.NewScanner(bytes.NewReader(b))
 	s.Split(bufio.ScanLines)
@@ -194,6 +195,10 @@ func Packs(dbg bool, sources []string, pkgPath string, includes []string) (err e
 		if ic || slices.IndexFunc(includes, func(s string) bool {
 			return s == p || strings.HasPrefix(p, s)
 		}) >= 0 {
+			d[p] = string(t[i+1:])
+		} else if !ic && ec && slices.IndexFunc(excludes, func(s string) bool {
+			return s == p || strings.HasPrefix(p, s)
+		}) < 0 {
 			d[p] = string(t[i+1:])
 		}
 	}

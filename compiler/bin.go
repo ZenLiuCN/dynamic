@@ -29,7 +29,8 @@ func main() {
 			Action: compile,
 			Flags: []cli.Flag{
 				&cli.BoolFlag{Name: "pack", Aliases: []string{"a"}, Usage: "pack dependency packages"},
-				&cli.StringSliceFlag{Name: "includes", Aliases: []string{"c"}, Usage: "pack dependency packages only included"},
+				&cli.StringSliceFlag{Name: "includes", Aliases: []string{"c"}, Usage: "pack dependency packages only included, if provided excludes will no effect."},
+				&cli.StringSliceFlag{Name: "excludes", Aliases: []string{"e"}, Usage: "pack dependencies packages excluded"},
 				&cli.StringFlag{Name: "pkg", Aliases: []string{"k"}, Usage: "package import path, required with -a or --pack"},
 			},
 			Args:  true,
@@ -50,11 +51,7 @@ func main() {
 			Action: imports,
 			Usage:  "display imports of go objfile or go archive file",
 			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:    "pkg",
-					Aliases: []string{"p"},
-					Usage:   "package path or default main",
-				},
+				&cli.StringFlag{Name: "pkg", Aliases: []string{"p"}, Usage: "package path or default main"},
 			},
 			Args: true,
 		},
@@ -68,16 +65,9 @@ func main() {
 			Name:   "module",
 			Action: module,
 			Flags: []cli.Flag{
-				&cli.StringSliceFlag{
-					Name:    "includes",
-					Aliases: []string{"c"},
-					Usage:   "pack dependencies packages only included",
-				},
-				&cli.StringFlag{
-					Name:    "pkg",
-					Aliases: []string{"k"},
-					Usage:   "package import path, required with -a or --pack",
-				},
+				&cli.StringSliceFlag{Name: "includes", Aliases: []string{"c"}, Usage: "pack dependencies packages only included, if provided, excludes will no effect."},
+				&cli.StringSliceFlag{Name: "excludes", Aliases: []string{"e"}, Usage: "pack dependencies packages excluded"},
+				&cli.StringFlag{Name: "pkg", Aliases: []string{"k"}, Usage: "package import path, required with -a or --pack"},
 			},
 			Usage: "compile current work directory as go module to linkable",
 			Args:  false,
@@ -103,11 +93,12 @@ func module(ctx *cli.Context) (err error) {
 		return fmt.Errorf("generate importcfg : %w ", err)
 	}
 	i := ctx.StringSlice("c")
+	e := ctx.StringSlice("e")
 	pk := ctx.String("k")
 	if pk == "" {
 		return fmt.Errorf("required argument -k|--pkgPath missing")
 	}
-	return Packs(d, o, pk, i)
+	return Packs(d, o, pk, i, e)
 }
 
 func linkers(ctx *cli.Context) (err error) {
@@ -164,11 +155,12 @@ func compile(ctx *cli.Context) (err error) {
 	}
 	if ctx.Bool("a") {
 		i := ctx.StringSlice("c")
+		e := ctx.StringSlice("e")
 		pk := ctx.String("k")
 		if pk == "" {
 			return fmt.Errorf("required argument -k|--pkgPath missing")
 		}
-		return Packs(d, o, pk, i)
+		return Packs(d, o, pk, i, e)
 	}
 	return Compile(d, o, true)
 }
