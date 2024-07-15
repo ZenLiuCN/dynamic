@@ -29,6 +29,7 @@ func main() {
 			Action: compile,
 			Flags: []cli.Flag{
 				&cli.BoolFlag{Name: "pack", Aliases: []string{"a"}, Usage: "pack dependency packages"},
+				&cli.BoolFlag{Name: "noPkg", Aliases: []string{"n"}, Usage: "pack without dependencies"},
 				&cli.StringSliceFlag{Name: "includes", Aliases: []string{"c"}, Usage: "pack dependency packages only included, if provided excludes will no effect."},
 				&cli.StringSliceFlag{Name: "excludes", Aliases: []string{"e"}, Usage: "pack dependencies packages excluded"},
 				&cli.StringFlag{Name: "pkg", Aliases: []string{"k"}, Usage: "package import path, required with -a or --pack"},
@@ -65,6 +66,7 @@ func main() {
 			Name:   "module",
 			Action: module,
 			Flags: []cli.Flag{
+				&cli.BoolFlag{Name: "noPkg", Aliases: []string{"n"}, Usage: "pack without dependencies"},
 				&cli.StringSliceFlag{Name: "includes", Aliases: []string{"c"}, Usage: "pack dependencies packages only included, if provided, excludes will no effect."},
 				&cli.StringSliceFlag{Name: "excludes", Aliases: []string{"e"}, Usage: "pack dependencies packages excluded"},
 				&cli.StringFlag{Name: "pkg", Aliases: []string{"k"}, Usage: "package import path, required with -a or --pack"},
@@ -98,14 +100,14 @@ func module(ctx *cli.Context) (err error) {
 	if pk == "" {
 		return fmt.Errorf("required argument -k|--pkgPath missing")
 	}
-	return Packs(d, o, pk, i, e)
+	return Packs(d, o, pk, ctx.Bool("n"), i, e)
 }
 
 func linkers(ctx *cli.Context) (err error) {
 	var f *os.File
 	var l *goloader.Linker
 	for _, s := range ctx.Args().Slice() {
-		if f, err = os.OpenFile(s, os.O_WRONLY, os.ModePerm); err != nil {
+		if f, err = os.OpenFile(s, os.O_RDONLY, os.ModePerm); err != nil {
 			return
 		}
 		l, err = goloader.UnSerialize(f)
@@ -113,7 +115,14 @@ func linkers(ctx *cli.Context) (err error) {
 			return
 		}
 		v := LinkerImportsIter(l)
-		log.Printf("\n%s", v.String())
+		miss := goloader.UnresolvedSymbols(l, nil)
+		s := new(strings.Builder)
+		for _, s2 := range miss {
+			if !strings.HasPrefix(s2, "runtime") {
+				s.WriteString("\t" + s2 + "\n")
+			}
+		}
+		log.Printf("\npackags:\n%s\nmissing\n%s", v.String(), s.String())
 	}
 	return
 }
@@ -160,7 +169,7 @@ func compile(ctx *cli.Context) (err error) {
 		if pk == "" {
 			return fmt.Errorf("required argument -k|--pkgPath missing")
 		}
-		return Packs(d, o, pk, i, e)
+		return Packs(d, o, pk, ctx.Bool("n"), i, e)
 	}
 	return Compile(d, o, true)
 }

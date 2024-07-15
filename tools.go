@@ -164,7 +164,7 @@ func checkAll(p string) bool {
 func check(p string, pkg string) bool {
 	return strings.HasPrefix(p, pkg+"/") || p == pkg
 }
-func Packs(dbg bool, sources []string, pkgPath string, includes []string, excludes []string) (err error) {
+func Packs(dbg bool, sources []string, pkgPath string, noPkg bool, includes []string, excludes []string) (err error) {
 	defer func() {
 		if err == nil && !dbg {
 			err = os.Remove("importcfg")
@@ -174,12 +174,19 @@ func Packs(dbg bool, sources []string, pkgPath string, includes []string, exclud
 	if err != nil {
 		return
 	}
-	ic := len(includes) != 0
-	ec := len(excludes) != 0
-	b := fn.Panic1(os.ReadFile("importcfg"))
-	s := bufio.NewScanner(bytes.NewReader(b))
+	var ic, ec bool
+	var b []byte
+	var s *bufio.Scanner
+	var d map[string]string
+	if noPkg {
+		goto skipScan
+	}
+	ic = len(includes) != 0
+	ec = len(excludes) != 0
+	b = fn.Panic1(os.ReadFile("importcfg"))
+	s = bufio.NewScanner(bytes.NewReader(b))
 	s.Split(bufio.ScanLines)
-	d := make(map[string]string)
+	d = make(map[string]string)
 	for s.Scan() {
 		t := s.Bytes()
 		t = bytes.TrimPrefix(t, pkgPrefix)
@@ -202,6 +209,7 @@ func Packs(dbg bool, sources []string, pkgPath string, includes []string, exclud
 			d[p] = string(t[i+1:])
 		}
 	}
+skipScan:
 	px := strings.TrimSuffix(sources[0], ".go")
 	n := px
 	if len(sources) > 1 {
@@ -224,6 +232,9 @@ func Packs(dbg bool, sources []string, pkgPath string, includes []string, exclud
 			log.Printf("required %s", s2)
 		}
 	}
+	if noPkg {
+		goto skipPkg
+	}
 	for pkg, file := range d {
 		if dbg {
 			log.Printf("will pack with %s from %s", pkg, file)
@@ -237,6 +248,7 @@ func Packs(dbg bool, sources []string, pkgPath string, includes []string, exclud
 			return errors.Join(fmt.Errorf("loading dependecy %s from %s", pkg, file), err)
 		}
 	}
+skipPkg:
 	var o *os.File
 	o, err = os.OpenFile(px+".linkable", os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	if err != nil {
@@ -244,6 +256,12 @@ func Packs(dbg bool, sources []string, pkgPath string, includes []string, exclud
 	}
 	defer fn.IgnoreClose(o)
 	err = l.Serialize(o)
+	if err != nil {
+		return
+	}
+	if !dbg {
+		err = os.Remove(n)
+	}
 	return
 }
 
@@ -338,6 +356,8 @@ type Info struct {
 
 func (i Info) String() string {
 	s := strings.Builder{}
+	s.WriteString(fmt.Sprintf("[%s]\t%s\n", i.PkgPath, i.File))
+	s.WriteString(fmt.Sprintf("\t--Imports--\n"))
 	for p, v := range i.Imports {
 		if v != "" {
 			s.WriteString(fmt.Sprintf("\t%s@%s\n", p, v))
