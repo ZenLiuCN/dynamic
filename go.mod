@@ -3,9 +3,9 @@ module github.com/ZenLiuCN/dynamic
 go 1.21
 
 require (
-	github.com/ZenLiuCN/fn v0.1.33
+	github.com/ZenLiuCN/fn v0.1.34
 	github.com/davecgh/go-spew v1.1.1
-	github.com/pkujhd/goloader v0.0.0-20240625120806-66ff56c12072
+	github.com/pkujhd/goloader v0.0.0-20240727102159-45636494ada5
 	github.com/urfave/cli/v2 v2.27.2
 )
 
@@ -14,5 +14,5 @@ require (
 	github.com/go-akka/configuration v0.0.0-20200606091224-a002c0330665 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20240312152122-5f08fbb34913 // indirect
-	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 )

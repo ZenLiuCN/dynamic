@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"slices"
 	"strings"
 	"unsafe"
 )
@@ -44,9 +45,9 @@ type (
 		Initialize(file, pkg string, types ...any) (err error)       //Initialize from one object file
 		InitializeSerialized(in io.Reader, types ...any) (err error) //Initialize from serialized linker
 
-		LoadDependencies(dependencies ...Dependency) error //load dependencies, must use before [Dynamic.Link]
-		ExistsSymbols() []string                           //runtime symbols, valid after creation
-		MissingSymbols() []string                          //dump the missing symbols, valid after initialize.
+		LoadDependencies(dependency Dependency, dependencies ...Dependency) error //load dependencies, must use before [Dynamic.Link]
+		ExistsSymbols() []string                                                  //runtime symbols, valid after creation
+		MissingSymbols() []string                                                 //dump the missing symbols, valid after initialize.
 
 		Link() (err error) //link and create code module, must use after [Dynamic.Initialize], [Dynamic.InitializeSerialized] or [Dynamic.InitializeMany],throws ErrUninitialized
 
@@ -151,18 +152,24 @@ func (s *dynamic) InitializeSerialized(in io.Reader, types ...any) (err error) {
 	return
 }
 
-func (s *dynamic) LoadDependencies(dependencies ...Dependency) (err error) {
+func (s *dynamic) LoadDependencies(dependency Dependency, dependencies ...Dependency) (err error) {
 	if s.linker == nil {
 		return ErrUninitialized
 	}
 	if s.module != nil {
 		return ErrLinked
 	}
-	for _, dependency := range dependencies {
-		err = s.linker.ReadDependPkg(dependency.File, dependency.PkgPath, dependency.Symbols, s.Symbols)
-		if err != nil {
-			return
-		}
+	var files = []string{dependency.File}
+	var paths = []string{dependency.PkgPath}
+	var syms = slices.Clone(dependency.Symbols)
+	for _, d := range dependencies {
+		files = append(files, d.File)
+		paths = append(paths, d.PkgPath)
+		syms = append(syms, d.Symbols...)
+	}
+	err = s.linker.ReadDependPkgs(files, paths, syms, s.Symbols)
+	if err != nil {
+		return
 	}
 	return
 }

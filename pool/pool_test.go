@@ -12,11 +12,22 @@ func TestNewPool(t *testing.T) {
 	d := dynamic.Proto(nil)
 	p.RegisterTypes(&d)
 	fn.Panic(p.LoadFile("../testdata/constant.a", "sample"))
-	t.Log(dynamic.As[func() string](p.Require("sample", "Run"))())
+	s0 := p.Require("sample", "Run")
+	t.Log(dynamic.As[func() string](&s0)())
 	sp := spew.NewDefaultConfig()
 	sp.MaxDepth = 5
-	sp.Dump(dynamic.As[func(string) dynamic.Proto](p.Require("sample", "NewFactory"))("123"))
-	sp.Dump(dynamic.As[func() dynamic.Proto](p.Require("sample", "Const"))())
-	sp.Dump(p)
+	s1 := p.Require("sample", "NewFactory")
+	sp.Dump(dynamic.As[func(string) dynamic.Proto](&s1)("123"))
+	s2 := p.Require("sample", "Const")
+	sp.Dump(dynamic.As[func() dynamic.Proto](&s2)())
+	for name, dyn := range p.Modules {
+		sp.Dump(name, dyn)
+		for s, symbol := range dyn.GetLinker().ObjSymbolMap {
+			sp.Dump(s, symbol.Name)
+		}
+		for s, symbol := range dyn.GetModule().Syms {
+			sp.Dump(s, symbol)
+		}
+	}
 
 }
