@@ -389,9 +389,14 @@ func parseInfo(v *obj.Pkg) (i *Info) {
 				f = f[x:]
 				if i.Imports[s] == "" {
 					y := strings.IndexByte(f, '@')
-					ver := f[y+1:]
+					var ver = ""
+					if y >= 0 {
+						ver = f[y+1:]
+					}
 					y = strings.IndexByte(ver, '/')
-					ver = ver[:y]
+					if y >= 0 {
+						ver = ver[:y]
+					}
 					i.Imports[s] = ver
 				}
 			}
