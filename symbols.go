@@ -2,6 +2,7 @@ package dynamic
 
 import (
 	"errors"
+
 	"github.com/pkujhd/goloader"
 )
 

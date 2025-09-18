@@ -2,14 +2,16 @@ package dynamic
 
 import (
 	"fmt"
-	"github.com/ZenLiuCN/fn"
-	"github.com/pkujhd/goloader"
 	"io"
 	"log"
+	"maps"
 	"os"
 	"slices"
 	"strings"
 	"unsafe"
+
+	"github.com/ZenLiuCN/fn"
+	"github.com/pkujhd/goloader"
 )
 
 type (
@@ -40,32 +42,7 @@ type (
 	//
 	//	1. Must fetch and use one symbol as desired type inside one specific goroutine.
 	//	2. Dynamic itself can be used safe between goroutines, but not thread-safe.
-	Dynamic interface {
-		InitializeMany(file, pkg []string, types ...any) (err error) //Initialize from many object files
-		Initialize(file, pkg string, types ...any) (err error)       //Initialize from one object file
-		InitializeSerialized(in io.Reader, types ...any) (err error) //Initialize from serialized linker
-
-		LoadDependencies(dependency Dependency, dependencies ...Dependency) error //load dependencies, must use before [Dynamic.Link]
-		ExistsSymbols() []string                                                  //runtime symbols, valid after creation
-		MissingSymbols() []string                                                 //dump the missing symbols, valid after initialize.
-
-		Link() (err error) //link and create code module, must use after [Dynamic.Initialize], [Dynamic.InitializeSerialized] or [Dynamic.InitializeMany],throws ErrUninitialized
-
-		Serialize(out io.Writer) error     //write linker data to an output binary format [gob] which may loaded by [Dynamic.InitializeSerialized]
-		Fetch(sym string) (u Sym, ok bool) //fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized
-		MustFetch(sym string) (u Sym)      // fetch a symbol as unsafe.Pointer, which can cast to the desired type, throws ErrUninitialized or ErrMissingSymbol
-		Exports() []string                 //exports symbols of the module. nil if not link
-		Free(sync bool)                    //resources of dynamic module, sync parameter to sync the stdout or not
-		GetLinker() *goloader.Linker       //fetch the internal [goloader.Linker], it is nil before initial stage by invoke one of [Dynamic.Initialize], [Dynamic.InitializeSerialized] or [Dynamic.InitializeMany]
-		GetModule() *goloader.CodeModule   //fetch the internal [goloader.CodeModule], it is nil before link by invoke [Dynamic.Link]
-
-		internal()
-	}
-	// Symbols contains global resolved symbols
-	//
-	// If two Dynamic shares the same Symbols instance, it may depend on each other after make.
-	Symbols map[string]uintptr
-	dynamic struct {
+	Dynamic struct {
 		files []string
 		pkg   []string
 		Symbols
@@ -73,27 +50,35 @@ type (
 		module *goloader.CodeModule
 		debug  bool
 	}
+
+	// Symbols contains global resolved symbols
+	//
+	// If two Dynamic shares the same Symbols instance, it may depend on each other after make.
+	Symbols map[string]uintptr
 )
 
-func (s Symbols) ExistsSymbols() []string {
-	return fn.MapKeys(s)
+func (s Symbols) ExistsSymbols() (v []string) {
+	for x := range maps.Keys(s) {
+		v = append(v, x)
+	}
+	return
 }
 
 // NewDynamic create new dynamic with provided Symbols, an optional debug parameter will enable debug logging inside Dynamic
-func NewDynamic(sym Symbols, debug ...bool) (d Dynamic) {
-	x := new(dynamic)
+func NewDynamic(sym Symbols, debug ...bool) (d *Dynamic) {
+	x := new(Dynamic)
 	x.Symbols = sym
 	x.debug = debug != nil && len(debug) > 0 && debug[0]
 	return x
 }
-func (s *dynamic) internal() {}
-func (s *dynamic) GetLinker() *goloader.Linker {
+func (s *Dynamic) internal() {}
+func (s *Dynamic) GetLinker() *goloader.Linker {
 	return s.linker
 }
-func (s *dynamic) GetModule() *goloader.CodeModule {
+func (s *Dynamic) GetModule() *goloader.CodeModule {
 	return s.module
 }
-func (s *dynamic) InitializeMany(file, pkg []string, types ...any) (err error) {
+func (s *Dynamic) InitializeMany(file, pkg []string, types ...any) (err error) {
 	if s.linker != nil {
 		return ErrAlreadyInitialized
 	}
@@ -113,7 +98,7 @@ func (s *dynamic) InitializeMany(file, pkg []string, types ...any) (err error) {
 	}
 	return
 }
-func (s *dynamic) Initialize(file, pkg string, types ...any) (err error) {
+func (s *Dynamic) Initialize(file, pkg string, types ...any) (err error) {
 	if s.linker != nil {
 		return ErrAlreadyInitialized
 	}
@@ -133,7 +118,7 @@ func (s *dynamic) Initialize(file, pkg string, types ...any) (err error) {
 	}
 	return
 }
-func (s *dynamic) InitializeSerialized(in io.Reader, types ...any) (err error) {
+func (s *Dynamic) InitializeSerialized(in io.Reader, types ...any) (err error) {
 	if s.linker != nil {
 		return ErrAlreadyInitialized
 	}
@@ -152,7 +137,7 @@ func (s *dynamic) InitializeSerialized(in io.Reader, types ...any) (err error) {
 	return
 }
 
-func (s *dynamic) LoadDependencies(dependency Dependency, dependencies ...Dependency) (err error) {
+func (s *Dynamic) LoadDependencies(dependency Dependency, dependencies ...Dependency) (err error) {
 	if s.linker == nil {
 		return ErrUninitialized
 	}
@@ -173,7 +158,7 @@ func (s *dynamic) LoadDependencies(dependency Dependency, dependencies ...Depend
 	}
 	return
 }
-func (s *dynamic) Link() (err error) {
+func (s *Dynamic) Link() (err error) {
 	if s.linker == nil {
 		return ErrUninitialized
 	}
@@ -189,7 +174,7 @@ func (s *dynamic) Link() (err error) {
 	return
 }
 
-func (s *dynamic) Exports() (v []string) {
+func (s *Dynamic) Exports() (v []string) {
 	if s.linker == nil {
 		return
 	}
@@ -199,23 +184,7 @@ func (s *dynamic) Exports() (v []string) {
 	return fn.MapKeys(s.module.Syms)
 }
 
-/*
-func (s *dynamic) InitTask(pkg string) bool {
-
-		if s.module == nil {
-			panic(ErrUninitialized)
-		}
-		t := pkg + ".init"
-		for k, p := range s.module.Symbols {
-			if k == t {
-				As[func()]((Sym)(unsafe.Pointer(&p)))()
-				return true
-			}
-		}
-		return false
-	}
-*/
-func (s *dynamic) Fetch(sym string) (u Sym, ok bool) {
+func (s *Dynamic) Fetch(sym string) (u Sym, ok bool) {
 	if s.module == nil {
 		ok = false
 		return
@@ -238,7 +207,7 @@ func checkPackage(sym string) string {
 	}
 	return sym
 }
-func (s *dynamic) MustFetch(sym string) (u Sym) {
+func (s *Dynamic) MustFetch(sym string) (u Sym) {
 	if s.module == nil {
 		panic(ErrUninitialized)
 	}
@@ -253,20 +222,20 @@ func (s *dynamic) MustFetch(sym string) (u Sym) {
 	return Sym(p)
 }
 
-func (s *dynamic) MissingSymbols() []string {
+func (s *Dynamic) MissingSymbols() []string {
 	if s.linker == nil {
 		panic(ErrUninitialized)
 	}
 	return goloader.UnresolvedSymbols(s.linker, s.Symbols)
 }
-func (s *dynamic) Serialize(out io.Writer) error {
+func (s *Dynamic) Serialize(out io.Writer) error {
 	if s.linker == nil {
 		panic(ErrUninitialized)
 	}
 	return goloader.Serialize(s.linker, out)
 }
 
-func (s *dynamic) Free(sync bool) {
+func (s *Dynamic) Free(sync bool) {
 	if s.linker != nil {
 		if s.debug {
 			log.Printf("free Dynamic: %+v", s)
@@ -304,8 +273,8 @@ func (s *dynamic) Free(sync bool) {
 }
 
 // Use create a function to fetch and use symbol on the fly
-func Use[T any](dyn Dynamic, sym string) func(func(t T, err error)) {
-	dbg := dyn.(*dynamic).debug
+func Use[T any](dyn *Dynamic, sym string) func(func(t T, err error)) {
+	dbg := dyn.debug
 	return func(f func(t T, err error)) {
 		var x T
 		defer func() {

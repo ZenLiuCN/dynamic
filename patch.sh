@@ -1,4 +1,6 @@
 #!/bin/sh
+echo "Lookup $GOROOT"
+
 if  [ ! -d "$GOROOT/src/cmd/objfile" ]; then
   cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
   echo patched go sdk

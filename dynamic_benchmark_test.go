@@ -1,15 +1,17 @@
 package dynamic
 
 import (
-	"github.com/ZenLiuCN/fn"
 	"testing"
 	"time"
+
+	"github.com/ZenLiuCN/fn"
 )
 
 func BenchmarkLoad(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		dyn := NewDynamic(sym)
+		dyn.debug = true
 		fn.Panic(dyn.Initialize(moduleFunc, pkgSample))
 		fn.Panic(dyn.Link())
 	}

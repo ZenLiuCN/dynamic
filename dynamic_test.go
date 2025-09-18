@@ -1,10 +1,11 @@
 package dynamic
 
 import (
-	"github.com/ZenLiuCN/fn"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/ZenLiuCN/fn"
 
 	"bytes"
 	"encoding/hex"
@@ -33,6 +34,9 @@ var sym = fn.Panic1(NewSymbols())
 
 func TestArchive(t *testing.T) {
 	d := NewDynamic(sym, debugging)
+	for _, i := range sym.ExistsSymbols() {
+		println(i)
+	}
 	var pt Proto
 	fn.Panic(d.Initialize(moduleArchive, pkgSample, &pt))
 	fn.Panic(d.Link())
@@ -134,7 +138,7 @@ func TestRoutines(t *testing.T) {
 	w.Wait()
 }
 
-var m Dynamic
+var m *Dynamic
 
 func ready() {
 	if m == nil {
@@ -150,7 +154,7 @@ func TestUse(t *testing.T) {
 	fn.Panic(dyn.Link())
 	defer dyn.Free(true)
 	type args struct {
-		dyn Dynamic
+		dyn *Dynamic
 		sym string
 	}
 	type testCase[T any] struct {
